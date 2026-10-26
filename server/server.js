@@ -92,13 +92,11 @@ const itemSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
-
     status: {
       type: String,
-      enum: ["active", "returned", "closed"],
+      enum: ["active", "claim_pending", "returned", "closed"],
       default: "active",
     },
-
     claimId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Claim",
@@ -688,12 +686,15 @@ app.post(
         finder: foundItem.owner,
       });
 
-      lostItem.claimId = claim._id;
-      foundItem.claimId = claim._id;
+        lostItem.claimId = claim._id;
+        foundItem.claimId = claim._id;
 
-      await Promise.all([
-        lostItem.save(),
-        foundItem.save(),
+        // Temporarily hide only the found report
+        foundItem.status = "claim_pending";
+
+        await Promise.all([
+          lostItem.save(),
+          foundItem.save(),
       ]);
 
       return res.status(201).json({
@@ -872,22 +873,26 @@ async function confirmClaim(req, res, role) {
 
       if (
         lostItem.status !== "active" ||
-        foundItem.status !== "active"
+        foundItem.status !== "claim_pending"
       ) {
+        return res.status(409).json({
+          message: "One or both reports are no longer available.",
+        });
+      } 
+      {
         return res.status(409).json({
           message: "One or both reports are no longer active.",
         });
       }
 
       lostItem.status = "closed";
-      foundItem.status = "closed";
 
       claim.status = "closed";
       claim.closedAt = new Date();
 
       await Promise.all([
         lostItem.save(),
-        foundItem.save(),
+        Item.findByIdAndDelete(foundItem._id),
         claim.save(),
       ]);
 
@@ -963,10 +968,12 @@ app.post(
       await Item.updateMany(
         {
           claimId: claim._id,
-          status: "active",
         },
         {
-          $set: { claimId: null },
+          $set: {
+            claimId: null,
+            status: "active",
+          },
         }
       );
 
