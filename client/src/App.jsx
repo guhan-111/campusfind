@@ -3,7 +3,7 @@ import "./App.css";
 import { ReportStack } from "./dsa/stack";
 
 const API_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:5000";
+  import.meta.env.VITE_API_URL || "https://campusfind-backend-2.onrender.com";
 
 function App() {
   const [recentReports, setRecentReports] = useState([]);
